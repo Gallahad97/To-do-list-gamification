@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gamified To-Do List: Kalahkan Monster!</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .font-game {
+            font-family: 'Press Start 2P', cursive;
+        }
+        .shake {
+            animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+        }
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-1px, 0, 0); }
+            20%, 80% { transform: translate3d(2px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+            40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
+        .damage-popup {
+            position: absolute;
+            top: 40%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #ef4444;
+            opacity: 0;
+            animation: fadeUp 1s ease-out;
+            text-shadow: 2px 2px #000;
+        }
+        @keyframes fadeUp {
+            0% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+            100% { opacity: 0; transform: translate(-50%, -150%) scale(1.5); }
+        }
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-left-color: #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #1f2937; }
+        ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #6b7280; }
+        .subtask-input { display: none; }
+        .subtask-input.active { display: flex; }
+    </style>
+</head>
+<body class="bg-gray-900 text-white antialiased">
+
+    <div class="container mx-auto p-4 md:p-8 max-w-4xl min-h-screen flex flex-col">
+        
+        <header class="text-center mb-8">
+            <h1 class="font-game text-3xl md:text-4xl text-yellow-400 drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]">Quest Harian</h1>
+            <p class="text-gray-400 mt-2">Selesaikan tugas untuk mengalahkan monster!</p>
+            <p id="weekly-kills" class="font-game text-lg text-cyan-300 mt-4">Buruan Minggu Ini: 0</p>
+        </header>
+
+        <div id="monster-section" class="bg-gray-800 p-6 rounded-2xl shadow-lg mb-8 border-2 border-gray-700 relative">
+            <div id="damage-container" class="absolute inset-0 flex items-center justify-center pointer-events-none"></div>
+            <div class="flex flex-col md:flex-row items-center gap-6">
+                <div id="monster-sprite" class="w-32 h-32 md:w-40 md:h-40 flex-shrink-0 bg-gray-700 rounded-lg"></div>
+                <div class="w-full">
+                    <div class="flex items-center gap-3 mb-2">
+                        <h2 id="monster-name" class="font-game text-2xl text-red-500">Loading...</h2>
+                        <label for="monster-image-upload" class="cursor-pointer text-gray-400 hover:text-cyan-400 transition-colors" title="Ganti Gambar Monster">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                        </label>
+                        <input type="file" id="monster-image-upload" class="hidden" accept="image/*">
+                    </div>
+                    <div class="w-full bg-gray-700 rounded-full h-8 border-2 border-gray-600 overflow-hidden">
+                        <div id="monster-hp-bar" class="bg-green-500 h-full rounded-full text-center text-black font-bold text-sm flex items-center justify-center transition-all duration-500 ease-out" style="width: 100%;"></div>
+                    </div>
+                    <p id="monster-hp-text" class="text-center mt-2 text-lg font-semibold">... / ... HP</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-gray-800 p-6 rounded-2xl shadow-lg border-2 border-gray-700 flex-grow flex flex-col">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="font-game text-2xl text-cyan-400">Papan Quest</h2>
+                <button id="ai-quest-btn" class="bg-purple-600 hover:bg-purple-700 font-bold py-2 px-4 rounded-lg transition-colors duration-300 flex items-center gap-2">
+                    <span class="text-yellow-300">✨</span> Buat Quest AI
+                </button>
+            </div>
+            <form id="add-task-form" class="flex flex-col sm:flex-row gap-2 mb-4">
+                <input type="text" id="task-input" class="w-full bg-gray-900 border-2 border-gray-700 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-cyan-500" placeholder="Quest baru...">
+                <select id="priority-input" class="bg-gray-900 border-2 border-gray-700 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-cyan-500">
+                    <option value="Biasa">Biasa</option>
+                    <option value="Penting">Penting</option>
+                    <option value="Mendesak">Mendesak</option>
+                </select>
+                <button type="submit" class="bg-cyan-500 hover:bg-cyan-600 font-bold py-2 px-4 rounded-lg transition-colors duration-300">Tambah</button>
+            </form>
+            <div class="flex-grow overflow-y-auto pr-2">
+                <ul id="task-list" class="space-y-4"></ul>
+            </div>
+        </div>
+    </div>
+
+    <div id="victory-modal" class="hidden fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+        <div class="bg-gray-800 p-8 rounded-2xl shadow-xl text-center border-4 border-yellow-400 max-w-sm mx-4">
+            <h2 class="font-game text-3xl text-yellow-400 mb-4">QUEST COMPLETE!</h2>
+            <p class="text-gray-300 mb-6">Kamu telah mengalahkan Monster! Bersiap untuk perburuan berikutnya.</p>
+            <button id="play-again-button" class="bg-yellow-500 hover:bg-yellow-600 font-bold py-3 px-6 rounded-lg transition-colors duration-300 text-gray-900 text-lg">Ambil Quest Baru</button>
+        </div>
+    </div>
+
+    <div id="ai-quest-modal" class="hidden fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+        <div class="bg-gray-800 p-6 rounded-2xl shadow-xl border-2 border-gray-700 max-w-lg w-full">
+            <h3 class="font-game text-xl text-purple-400 mb-4">✨ AI Quest Generator</h3>
+            <p class="text-gray-400 mb-4">Masukkan tujuan besarmu, dan biarkan AI memecahnya menjadi quest-quest kecil!</p>
+            <div class="space-y-4">
+                <input type="text" id="ai-goal-input" class="w-full bg-gray-900 border-2 border-gray-700 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500" placeholder="Contoh: Belajar membuat website">
+                <div id="ai-results-container" class="space-y-2 max-h-60 overflow-y-auto pr-2"></div>
+                <div id="ai-loading-spinner" class="hidden justify-center items-center py-4">
+                    <div class="spinner"></div>
+                </div>
+                <div class="flex justify-end gap-2">
+                    <button id="ai-close-btn" class="bg-gray-600 hover:bg-gray-700 font-bold py-2 px-4 rounded-lg">Tutup</button>
+                    <button id="ai-generate-btn" class="bg-purple-600 hover:bg-purple-700 font-bold py-2 px-4 rounded-lg">Buat</button>
+                    <button id="ai-add-selected-btn" class="hidden bg-cyan-500 hover:bg-cyan-600 font-bold py-2 px-4 rounded-lg">Tambah Quest</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot, collection, addDoc, deleteDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+
+        // --- KONFIGURASI FIREBASE ANDA SUDAH DIPASANG ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyDWYTp8XeeN4kuIHTzt4WqPeZ30GIZrSOE",
+            authDomain: "to-do-list-gamification.firebaseapp.com",
+            projectId: "to-do-list-gamification",
+            storageBucket: "to-do-list-gamification.firebasestorage.app",
+            messagingSenderId: "179443734527",
+            appId: "1:179443734527:web:1c485a0d9ee165edcb39ca"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+        
+        const appId = firebaseConfig.projectId;
+
+        // --- VARIABEL DAN ELEMEN DOM ---
+        const taskForm = document.getElementById('add-task-form');
+        const taskInput = document.getElementById('task-input');
+        const priorityInput = document.getElementById('priority-input');
+        const taskList = document.getElementById('task-list');
+        const monsterSprite = document.getElementById('monster-sprite');
+        const monsterHpBar = document.getElementById('monster-hp-bar');
+        const monsterHpText = document.getElementById('monster-hp-text');
+        const monsterName = document.getElementById('monster-name');
+        const damageContainer = document.getElementById('damage-container');
+        const victoryModal = document.getElementById('victory-modal');
+        const playAgainButton = document.getElementById('play-again-button');
+        const monsterImageUpload = document.getElementById('monster-image-upload');
+        const weeklyKillsEl = document.getElementById('weekly-kills');
+        
+        const aiQuestBtn = document.getElementById('ai-quest-btn');
+        const aiQuestModal = document.getElementById('ai-quest-modal');
+        const aiGoalInput = document.getElementById('ai-goal-input');
+        const aiResultsContainer = document.getElementById('ai-results-container');
+        const aiLoadingSpinner = document.getElementById('ai-loading-spinner');
+        const aiCloseBtn = document.getElementById('ai-close-btn');
+        const aiGenerateBtn = document.getElementById('ai-generate-btn');
+        const aiAddSelectedBtn = document.getElementById('ai-add-selected-btn');
+
+        let userId = null;
+        let monsterData = null;
+        let tasksUnsubscribe = () => {};
+        let monsterUnsubscribe = () => {};
+        let statsUnsubscribe = () => {};
+        
+        const MONSTERS = [
+            { name: "Kulu-Ya-Ku", maxHp: 100, svg: `<svg viewBox="0 0 100 100"><g transform="translate(0, 5)"><path d="M50,25 C60,15 75,15 80,25 L85,45 C90,60 75,75 50,75 C25,75 10,60 15,45 L20,25 C25,15 40,15 50,25 Z" fill="#fde68a" stroke="#ca8a04" stroke-width="2"/><path d="M45,30 C40,25 35,30 38,35" fill="white" stroke="black" stroke-width="1"/><path d="M55,30 C60,25 65,30 62,35" fill="white" stroke="black" stroke-width="1"/><path d="M48,40 L52,40 L50,45 Z" fill="#fb923c"/><path d="M20,60 C10,70 25,85 35,75" fill="#fde68a" stroke="#ca8a04" stroke-width="1.5"/><path d="M80,60 C90,70 75,85 65,75" fill="#fde68a" stroke="#ca8a04" stroke-width="1.5"/><circle cx="50" cy="85" r="15" fill="#d6d3d1" stroke="#a8a29e" stroke-width="2"/></g></svg>` },
+            { name: "Great Jaggi", maxHp: 150, svg: `<svg viewBox="0 0 100 100"><path d="M50,30 C70,20 85,40 80,60 L70,85 L30,85 L20,60 C15,40 30,20 50,30 Z" fill="#eab308" stroke="#a16207" stroke-width="2"/><path d="M50,30 C40,20 30,25 35,35" fill="#dc2626" stroke="#991b1b" stroke-width="1.5"/><path d="M50,30 C60,20 70,25 65,35" fill="#dc2626" stroke="#991b1b" stroke-width="1.5"/><path d="M50,15 L40,30 L60,30 Z" fill="#fca5a5" stroke="#991b1b" stroke-width="1.5"/><path d="M45,45 L40,42" stroke="white" stroke-width="2"/><path d="M55,45 L60,42" stroke="white" stroke-width="2"/><path d="M40,60 C45,65 55,65 60,60" fill="none" stroke="black" stroke-width="2"/></svg>` },
+            { name: "Rathalos", maxHp: 250, svg: `<svg viewBox="0 0 100 100"><path d="M10,40 L30,30 L50,10 L70,30 L90,40 L75,60 L85,90 L50,75 L15,90 L25,60 Z" fill="#dc2626" stroke="#991b1b" stroke-width="2"/><path d="M30,30 C10,10 40,5 50,10" fill="#b91c1c"/><path d="M70,30 C90,10 60,5 50,10" fill="#b91c1c"/><path d="M48,25 L52,25" stroke="#fef08a" stroke-width="3" stroke-linecap="round"/><path d="M40,45 C42,42 48,42 50,45" fill="#fef08a"/><path d="M60,45 C58,42 52,42 50,45" fill="#fef08a"/><path d="M50,75 L40,95 L60,95 Z" fill="#dc2626" stroke="#991b1b" stroke-width="2"/></svg>` },
+            { name: "Diablos", maxHp: 350, svg: `<svg viewBox="0 0 100 100"><path d="M50,40 C80,30 95,50 90,70 L75,90 L25,90 L10,70 C5,50 20,30 50,40 Z" fill="#f59e0b" stroke="#b45309" stroke-width="2"/><path d="M25,45 C5,10 40,15 50,40" stroke="#b45309" stroke-width="4" fill="none" stroke-linecap="round"/><path d="M75,45 C95,10 60,15 50,40" stroke="#b45309" stroke-width="4" fill="none" stroke-linecap="round"/><path d="M40,55 L60,55" stroke="#78350f" stroke-width="3"/><path d="M30,90 L40,70 L60,70 L70,90" fill="#d97706"/></svg>` },
+            { name: "Nergigante", maxHp: 500, svg: `<svg viewBox="0 0 100 100"><path d="M50,10 L60,30 L80,35 L70,50 L75,70 L50,60 L25,70 L30,50 L20,35 L40,30 Z" fill="#e5e5e5" stroke="black" stroke-width="1.5"/><path d="M50,10 L10,40 L25,90 L75,90 L90,40 Z" fill="#404040" stroke="black" stroke-width="2"/><path d="M10,40 L0,35 L15,30 Z" fill="#e5e5e5" stroke="black" stroke-width="1.5"/><path d="M90,40 L100,35 L85,30 Z" fill="#e5e5e5" stroke="black" stroke-width="1.5"/><path d="M25,90 L20,98 L35,95 Z" fill="#e5e5e5" stroke="black" stroke-width="1.5"/><path d="M75,90 L80,98 L65,95 Z" fill="#e5e5e5" stroke="black" stroke-width="1.5"/><path d="M45,50 L40,45" stroke="#fca5a5" stroke-width="2"/><path d="M55,50 L60,45" stroke="#fca5a5" stroke-width="2"/></svg>` }
+        ];
+
+        const priorityStyles = {
+            'Biasa': 'bg-blue-500 text-blue-100',
+            'Penting': 'bg-yellow-500 text-yellow-100',
+            'Mendesak': 'bg-red-500 text-red-100',
+        };
+        
+        function getStartOfWeek(date) {
+            const d = new Date(date);
+            const day = d.getDay();
+            const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+            const monday = new Date(d.setDate(diff));
+            monday.setHours(0, 0, 0, 0);
+            return monday;
+        }
+
+        function renderTasks(tasks) {
+            taskList.innerHTML = '';
+            if (tasks.length === 0) {
+                taskList.innerHTML = `<li class="text-gray-500 text-center py-4">Belum ada quest. Ambil dari papan quest!</li>`;
+                return;
+            }
+            tasks.forEach(task => {
+                const li = document.createElement('li');
+                li.className = 'bg-gray-900 p-4 rounded-lg shadow-md border border-gray-700';
+                li.setAttribute('data-id', task.id);
+                const allSubtasksDone = !task.subtasks || task.subtasks.every(st => st.completed);
+                li.innerHTML = `
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <span class="font-bold text-lg">${task.text}</span>
+                            <span class="text-xs font-semibold px-2 py-1 rounded-full ml-2 ${priorityStyles[task.priority] || 'bg-gray-500'}">${task.priority}</span>
+                        </div>
+                        <div class="flex items-center gap-2 flex-shrink-0">
+                            <button class="add-subtask-btn text-cyan-400 hover:text-cyan-300 transition-colors"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" /></svg></button>
+                            <button class="complete-task-btn ${allSubtasksDone ? 'text-green-400 hover:text-green-300' : 'text-gray-600 cursor-not-allowed'}" ${!allSubtasksDone ? 'disabled' : ''}><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg></button>
+                            <button class="delete-task-btn text-red-500 hover:text-red-400 transition-colors"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
+                        </div>
+                    </div>
+                    <div class="pl-4 mt-3 space-y-2 subtask-list"></div>
+                    <form class="pl-4 mt-2 gap-2 subtask-input">
+                        <input type="text" class="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-cyan-500" placeholder="Sub-tugas...">
+                        <button type="submit" class="bg-cyan-600 hover:bg-cyan-700 text-white font-bold text-sm py-1 px-3 rounded-md">Add</button>
+                    </form>`;
+                const subtaskListEl = li.querySelector('.subtask-list');
+                if (task.subtasks && task.subtasks.length > 0) {
+                    task.subtasks.forEach(subtask => {
+                        const subtaskEl = document.createElement('div');
+                        subtaskEl.className = 'flex items-center gap-2 text-sm';
+                        subtaskEl.innerHTML = `<input type="checkbox" class="subtask-checkbox w-4 h-4 bg-gray-700 border-gray-600 rounded text-cyan-500 focus:ring-cyan-600" data-subtask-id="${subtask.id}" ${subtask.completed ? 'checked' : ''}><span class="${subtask.completed ? 'line-through text-gray-500' : ''}">${subtask.text}</span>`;
+                        subtaskListEl.appendChild(subtaskEl);
+                    });
+                }
+                taskList.appendChild(li);
+            });
+        }
+        
+        function renderMonster(data) {
+            monsterData = data;
+            const hpPercentage = (data.currentHp / data.maxHp) * 100;
+            monsterHpBar.style.width = `${hpPercentage}%`;
+            monsterHpText.textContent = `${data.currentHp} / ${data.maxHp} HP`;
+            monsterName.textContent = data.name;
+            
+            monsterSprite.innerHTML = '';
+            if (data.userImage) {
+                const img = document.createElement('img');
+                img.src = data.userImage;
+                img.className = 'w-full h-full object-cover rounded-lg';
+                monsterSprite.appendChild(img);
+            } else if (data.svg) {
+                monsterSprite.innerHTML = data.svg;
+            }
+
+            if (hpPercentage > 50) monsterHpBar.className = monsterHpBar.className.replace(/bg-\w+-500/, 'bg-green-500');
+            else if (hpPercentage > 20) monsterHpBar.className = monsterHpBar.className.replace(/bg-\w+-500/, 'bg-yellow-500');
+            else monsterHpBar.className = monsterHpBar.className.replace(/bg-\w+-500/, 'bg-red-500');
+
+            if (data.currentHp <= 0) {
+                if (!victoryModal.classList.contains('active')) {
+                    victoryModal.classList.remove('hidden');
+                    victoryModal.classList.add('active');
+                }
+            } else {
+                victoryModal.classList.add('hidden');
+                victoryModal.classList.remove('active');
+            }
+        }
+        
+        function showDamagePopup(damage) {
+            const damageText = document.createElement('div');
+            damageText.className = 'damage-popup font-game';
+            damageText.textContent = `-${damage}`;
+            damageContainer.appendChild(damageText);
+            setTimeout(() => damageText.remove(), 1000);
+        }
+        
+        async function loadData(uid) {
+            tasksUnsubscribe();
+            monsterUnsubscribe();
+            statsUnsubscribe();
+
+            const tasksCollectionRef = collection(db, `artifacts/${appId}/users/${uid}/tasks`);
+            tasksUnsubscribe = onSnapshot(tasksCollectionRef, (snapshot) => renderTasks(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))));
+            
+            const monsterDocRef = doc(db, `artifacts/${appId}/users/${uid}/gamestate/monster`);
+            monsterUnsubscribe = onSnapshot(monsterDocRef, async (docSnap) => {
+                if (docSnap.exists()) {
+                    renderMonster(docSnap.data());
+                } else {
+                    await resetMonster(uid, false);
+                }
+            });
+
+            const statsDocRef = doc(db, `artifacts/${appId}/users/${uid}/gamestate/stats`);
+            statsUnsubscribe = onSnapshot(statsDocRef, (docSnap) => {
+                const startOfWeek = getStartOfWeek(new Date());
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    const lastWeekStart = data.weekStart?.toDate();
+                    if (lastWeekStart && lastWeekStart.getTime() === startOfWeek.getTime()) {
+                         weeklyKillsEl.textContent = `Buruan Minggu Ini: ${data.kills || 0}`;
+                    } else {
+                         weeklyKillsEl.textContent = `Buruan Minggu Ini: 0`;
+                    }
+                } else {
+                    weeklyKillsEl.textContent = `Buruan Minggu Ini: 0`;
+                }
+            });
+        }
+        
+        async function addNewTask(text, priority) {
+            if (!userId) return;
+            await addDoc(collection(db, `artifacts/${appId}/users/${userId}/tasks`), { text, priority, createdAt: new Date(), subtasks: [] });
+        }
+        
+        async function addSubtask(mainTaskId, text) {
+            if (!userId) return;
+            const taskDocRef = doc(db, `artifacts/${appId}/users/${userId}/tasks`, mainTaskId);
+            await updateDoc(taskDocRef, { subtasks: arrayUnion({ id: crypto.randomUUID(), text, completed: false }) });
+        }
+        
+        async function toggleSubtask(mainTaskId, subtaskId, isCompleted) {
+            if (!userId) return;
+            const taskDocRef = doc(db, `artifacts/${appId}/users/${userId}/tasks`, mainTaskId);
+            const taskDoc = await getDoc(taskDocRef);
+            if (taskDoc.exists()) {
+                const updatedSubtasks = taskDoc.data().subtasks.map(st => st.id === subtaskId ? { ...st, completed: isCompleted } : st);
+                await updateDoc(taskDocRef, { subtasks: updatedSubtasks });
+            }
+        }
+        
+        async function completeTask(taskId) {
+            if (!userId || !monsterData || monsterData.currentHp <= 0) return;
+            const damage = Math.floor(Math.random() * 26) + 20;
+            monsterSprite.classList.add('shake');
+            showDamagePopup(damage);
+            setTimeout(() => monsterSprite.classList.remove('shake'), 500);
+            const newHp = Math.max(0, monsterData.currentHp - damage);
+            await updateDoc(doc(db, `artifacts/${appId}/users/${userId}/gamestate/monster`), { currentHp: newHp });
+            await deleteTask(taskId);
+        }
+        
+        async function deleteTask(taskId) {
+            if (!userId) return;
+            await deleteDoc(doc(db, `artifacts/${appId}/users/${userId}/tasks`, taskId));
+        }
+        
+        async function resetMonster(uid, recordKill) {
+            if (recordKill) {
+                const statsDocRef = doc(db, `artifacts/${appId}/users/${uid}/gamestate/stats`);
+                const statsDoc = await getDoc(statsDocRef);
+                const startOfWeek = getStartOfWeek(new Date());
+                let currentKills = 0;
+                let lastWeekStart = null;
+
+                if (statsDoc.exists()) {
+                    const statsData = statsDoc.data();
+                    currentKills = statsData.kills || 0;
+                    if (statsData.weekStart) lastWeekStart = statsData.weekStart.toDate();
+                }
+
+                if (!lastWeekStart || lastWeekStart.getTime() !== startOfWeek.getTime()) {
+                    await setDoc(statsDocRef, { kills: 1, weekStart: startOfWeek });
+                } else {
+                    await updateDoc(statsDocRef, { kills: currentKills + 1 });
+                }
+            }
+
+            const randomMonster = MONSTERS[Math.floor(Math.random() * MONSTERS.length)];
+            const newMonsterData = { ...randomMonster, currentHp: randomMonster.maxHp };
+            delete newMonsterData.userImage; 
+            await setDoc(doc(db, `artifacts/${appId}/users/${uid}/gamestate/monster`), newMonsterData);
+            victoryModal.classList.add('hidden');
+            victoryModal.classList.remove('active');
+        }
+
+        // --- AI Quest Generator Logic ---
+        async function generateQuestsWithAI(goal) {
+            // Kunci API Gemini Anda sudah terpasang.
+            const apiKey = "AIzaSyDV1pLvZir1Lo4FagZj0Hmu6QP0Ylvl9zk";
+
+            aiResultsContainer.innerHTML = '';
+            aiLoadingSpinner.style.display = 'flex';
+            aiGenerateBtn.disabled = true;
+            aiAddSelectedBtn.classList.add('hidden');
+
+            const prompt = `Anda adalah seorang perancang quest dalam sebuah game. Tugas Anda adalah memecah tujuan besar dari pemain menjadi 5-7 quest (tugas) yang lebih kecil dan dapat dikelola. Untuk setiap quest, berikan prioritas ('Biasa', 'Penting', 'Mendesak'). Tujuan pemain adalah: "${goal}". Berikan respons hanya dalam format JSON.`;
+            
+            const payload = {
+                contents: [{ role: "user", parts: [{ text: prompt }] }],
+                generationConfig: {
+                    responseMimeType: "application/json",
+                }
+            };
+            
+            try {
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    console.error("API Error:", errorData);
+                    throw new Error(`API request failed with status ${response.status}. ${errorData.error?.message || ''}`);
+                }
+
+                const result = await response.json();
+                const jsonText = result.candidates[0].content.parts[0].text;
+                const cleanedJsonText = jsonText.replace(/```json/g, '').replace(/```/g, '').trim();
+                const generatedData = JSON.parse(cleanedJsonText);
+                
+                if (generatedData.quests && generatedData.quests.length > 0) {
+                    generatedData.quests.forEach(quest => {
+                        const questEl = document.createElement('div');
+                        questEl.className = 'flex items-center gap-2 bg-gray-700 p-2 rounded-md';
+                        questEl.innerHTML = `
+                            <input type="checkbox" class="ai-quest-checkbox w-4 h-4 bg-gray-600 border-gray-500 rounded text-purple-500 focus:ring-purple-600" checked data-text="${quest.text}" data-priority="${quest.priority}">
+                            <span>${quest.text} (<span class="text-xs font-semibold">${quest.priority}</span>)</span>
+                        `;
+                        aiResultsContainer.appendChild(questEl);
+                    });
+                    aiAddSelectedBtn.classList.remove('hidden');
+                } else {
+                    aiResultsContainer.innerHTML = `<p class="text-gray-500 text-center">AI tidak dapat membuat quest. Coba tujuan lain.</p>`;
+                }
+
+            } catch (error) {
+                console.error("Error calling Gemini API:", error);
+                aiResultsContainer.innerHTML = `<p class="text-red-400 text-center">Terjadi kesalahan: ${error.message}</p>`;
+            } finally {
+                aiLoadingSpinner.style.display = 'none';
+                aiGenerateBtn.disabled = false;
+            }
+        }
+        
+        // --- Event Listeners ---
+        taskForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const taskText = taskInput.value.trim();
+            if (taskText) {
+                addNewTask(taskText, priorityInput.value);
+                taskInput.value = '';
+            }
+        });
+        
+        playAgainButton.addEventListener('click', async () => { if (userId) await resetMonster(userId, true); });
+        
+        taskList.addEventListener('click', async (e) => {
+            const mainTaskLi = e.target.closest('li');
+            if (!mainTaskLi) return;
+            const mainTaskId = mainTaskLi.dataset.id;
+            if (e.target.closest('.delete-task-btn')) deleteTask(mainTaskId);
+            if (e.target.closest('.complete-task-btn')) completeTask(mainTaskId);
+            if (e.target.closest('.add-subtask-btn')) {
+                mainTaskLi.querySelector('.subtask-input').classList.toggle('active');
+                mainTaskLi.querySelector('.subtask-input input').focus();
+            }
+            if (e.target.matches('.subtask-checkbox')) toggleSubtask(mainTaskId, e.target.dataset.subtaskId, e.target.checked);
+        });
+        
+        taskList.addEventListener('submit', (e) => {
+            if (e.target.matches('.subtask-input')) {
+                e.preventDefault();
+                const mainTaskLi = e.target.closest('li');
+                const input = e.target.querySelector('input');
+                if (input.value.trim()) {
+                    addSubtask(mainTaskLi.dataset.id, input.value.trim());
+                    input.value = '';
+                }
+            }
+        });
+
+        monsterImageUpload.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file || !file.type.startsWith('image/') || !userId || !monsterData) return;
+            if (file.size > 1048576) {
+                alert("Ukuran gambar terlalu besar! Maksimal 1MB.");
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = async (event) => {
+                const base64Image = event.target.result;
+                await updateDoc(doc(db, `artifacts/${appId}/users/${userId}/gamestate/monster`), { userImage: base64Image });
+            };
+            reader.readAsDataURL(file);
+        });
+
+        // AI Modal Event Listeners
+        aiQuestBtn.addEventListener('click', () => aiQuestModal.classList.remove('hidden'));
+        aiCloseBtn.addEventListener('click', () => aiQuestModal.classList.add('hidden'));
+        aiGenerateBtn.addEventListener('click', () => {
+            const goal = aiGoalInput.value.trim();
+            if (goal) {
+                generateQuestsWithAI(goal);
+            }
+        });
+        aiAddSelectedBtn.addEventListener('click', () => {
+            const selectedQuests = aiResultsContainer.querySelectorAll('.ai-quest-checkbox:checked');
+            selectedQuests.forEach(checkbox => {
+                addNewTask(checkbox.dataset.text, checkbox.dataset.priority);
+            });
+            aiQuestModal.classList.add('hidden');
+            aiGoalInput.value = '';
+            aiResultsContainer.innerHTML = '';
+            aiAddSelectedBtn.classList.add('hidden');
+        });
+
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                userId = user.uid;
+                loadData(userId);
+            } else {
+                signInAnonymously(auth).catch(console.error);
+            }
+        });
+    </script>
+</body>
+</html>
